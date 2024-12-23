@@ -1,0 +1,6 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+x64/
+Debug/
+.vs/
+midifile-master/visual-studio/

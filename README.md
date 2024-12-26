@@ -34,7 +34,8 @@ This tool was created as a personal experiment to combine my interests in coding
 
 ---
 ## Contributing
-This is just a side project for fun, but contributions, suggestions, and feedback are welcome. Feel free to submit issues or pull requests.
+This is just a side project for fun, but contributions, suggestions, and feedback are welcome.
+I don't really know how pull requests or git stuff works yet so you'll have to guide me on that if you'd like to contribute.
 
 ---
 

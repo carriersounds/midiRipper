@@ -30,7 +30,7 @@ This tool was created as a personal experiment to combine my interests in coding
 - **Platform**: Windows (uses WinGDI for screen sampling).
 - **Language**: C++
 - **Visual Studio 2019**: Compiled using VS2019
-- **Libraries**: [midifile](https://github.com/craigsapp/midifile)
+- **Libraries**: [midifile](https://github.com/craigsapp/midifile) (MIT Licence)
 
 ---
 ## Contributing

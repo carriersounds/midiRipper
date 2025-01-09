@@ -35,10 +35,10 @@ This tool was created as a personal experiment to combine my interests in coding
 ---
 ## Future-updates
 
--I'm working on a viable sensitivity slider for a wider range of detection
--I'm considering a UI revamp with [Dear ImGui](https://github.com/ocornut/imgui) in future updates for better usability.
--This is just a side project for fun, but contributions, suggestions, and feedback are welcome.
--I don't really know how pull requests or git stuff works yet so you'll have to guide me on that if you'd like to contribute.
+-  I'm working on a viable sensitivity slider for a wider range of detection
+-  I'm considering a UI revamp with [Dear ImGui](https://github.com/ocornut/imgui) in future updates for better usability.
+-  This is just a side project for fun, but contributions, suggestions, and feedback are welcome.
+-  I don't really know how pull requests or git stuff works yet so you'll have to guide me on that if you'd like to contribute.
 
 ---
 

@@ -23,11 +23,11 @@ using namespace smf;
 
 #define MAX_LOADSTRING 100
 #define inc(x) x = (x == 0xFFFFFFFF) ? 0 : x + 1
-#define Samplerate_persecond 5
-const int milliseconds = 1000.0f / (float)Samplerate_persecond;
-#define bufferdepth 1
-
 #define interp Interpreter::getInstance()
+#define now std::chrono::high_resolution_clock::now()
+
+typedef vector<BYTE> pianoColors;
+typedef std::chrono::high_resolution_clock::time_point timepoint;
 
 
 // Global Variables:
@@ -41,9 +41,7 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
-typedef vector<BYTE> pianoColors;
-typedef  std::chrono::high_resolution_clock::time_point timepoint;
-#define now std::chrono::high_resolution_clock::now()
+
  
 
 class Counter {
@@ -58,6 +56,7 @@ public:
     }
 
     Counter() {
+        setTicksPerMicroSecond(120, 60);
         elapsedMicroSeconds = 0;
         mFPS_previous = now;
         mFPS_current = now;
@@ -206,9 +205,6 @@ public:
 
     int bufferIndex = 0;
 
-    void timerTick() {
-        inc(time); 
-    }
     void log(string text) {
 
         OutputDebugStringA(text.data());
@@ -484,7 +480,6 @@ public:
         pianoColors startGray(amountOfSamples);
         MidiFile outFile;
         int currentTick;
-        int events = 0;
 
         counter.setTickRates(120, ticksPerBeat);
         outFile.setTicksPerQuarterNote(ticksPerBeat);
@@ -498,19 +493,12 @@ public:
             grayscales = sampleBitmap();
             currentTick = counter.getAbsTick();
 
-            int isEvents = detectNoteEvent(grayscales, outFile, currentTick);   
-            events += isEvents;
+            detectNoteEvent(grayscales, outFile, currentTick);   
 
-            if (isEvents) {
-               // string eventCount = to_string(events) + " MIDI events\n";
-               // OutputDebugStringA(eventCount.data());
-            }
-
-        //    counter.printFPS();
+        //  counter.printFPS();
         }
 
         OutputDebugStringA(to_string(saveMidiFile(outFile)).data());
-        //saveMidiFile(outFile);
 
     }
    
@@ -541,48 +529,26 @@ public:
         vector<bool> isPressed(amountOfSamples);
 
         for (int i = 0; i < amountOfSamples; i++) {
-
-          //  string bloc = to_string(sampo[i]);
-          //  samplingMoment += (bloc + " ");      
+    
 
             isPressed[i] = (abs(sampo[i] - oldPixelValues[i]) > 3);         // Note down, different from the "start values" of the piano
-
+            // add sensitivity slider !!!
 
             if (isPressed[i] != wasPressed[i]) {                             // IS EVENT TRIGGER! up or down 
-
 
                 vector<uchar> currentEvent = { 0 , 0, 0x80 }; //  (60 = middle C3)
 
                 currentEvent[OnOff] = isPressed[i] ? 0x90 : 0x80;       // note DOWN or UP event ?     0x90 = down   |   0x80 = up             
-                currentEvent[Note] = octaveCount > 5 ? i : i + 36;            // start from C1, if octavecount > 5 start from C-2 (fullrange)
-
+                currentEvent[Note] = octaveCount > 5 ? i : i + 36;            // start from C 1, if octavecount > 5 start from C -2 (fullrange)
 
                 string time = to_string(tick) + " Absticks: ";
-
                 OutputDebugStringA(time.data());
                 printEvent(currentEvent);
-
                 outFile.addEvent(1, tick, currentEvent);
             }
-
             wasPressed[i] = isPressed[i];
-
-            // something sampo[sPoint % 12] = note 
-            // octavecount = octave
-            // event type (pixel change, make buffer 1 history deep)
-            // create midi event (note, octave) up/down
-
-          //  oldPixelValues[i] = sampo[i];
-
         }    
 
-
-
-        // write to midi file
-
-
-       //    samplingMoment += ("\n");
-       //    OutputDebugStringA(samplingMoment.data());
         return changesDetected; // if change detected, = 0;
     }
 
@@ -590,10 +556,8 @@ public:
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-
         pianoColors grayscales(amountOfSamples);
         LockMap.lock();
-
 
         if (hBitmap) DeleteObject(hBitmap);
 
@@ -622,8 +586,7 @@ public:
         GetDIBits(hdcMem, hBitmap, 0, piano.bottom - piano.top, pixels.data(), &bmi, DIB_RGB_COLORS);
 
         // SAVE BMP FOR DEBUG
-        if (0) {
-
+#ifdef _DEBUG
             // string filePath = "A:/Music/Production/Electronics/midiRipper/recording.bmp";
 
              // Prepare BMP file header
@@ -635,15 +598,13 @@ public:
             // Open file to write the bitmap
             std::ofstream file("A:/Music/Production/Electronics/midiRipper/recording.bmp", std::ios::binary);
 
-
             // Write the file header, bitmap info header, and pixel data
             file.write(reinterpret_cast<char*>(&bfh), sizeof(BITMAPFILEHEADER));
             file.write(reinterpret_cast<char*>(&bmi.bmiHeader), sizeof(BITMAPINFOHEADER));
             file.write(reinterpret_cast<char*>(pixels.data()), totalPixels);
-
             // Close the file
             file.close();
-        }
+#endif
 
 
         int horComponent, verComponent, invertedRow, pixelIndex;
@@ -682,7 +643,7 @@ public:
 
     int createMidiFile() {
 
-        // A:\Music\Production\Electronics\midiRipper\midifile-master\tools\createmidifile.cpp
+        // example function from midifile library I used for learning
 
         MidiFile outputfile;        // create an empty MIDI file with one track
         outputfile.absoluteTicks(); // time information stored as absolute time
@@ -748,8 +709,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    // TODO: Place code here.
-
     Interpreter& initiate = interp;
 
     // Initialize global strings
@@ -789,7 +748,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         // Enable layered window style
         SetWindowLong(hWnd, GWL_EXSTYLE, GetWindowLong(hWnd, GWL_EXSTYLE) | WS_EX_LAYERED);
 
-        // transparancy: 250 = key
+        // grayscale 250 = color key  (transparancy)
        SetLayeredWindowAttributes(hWnd, RGB(250, 250, 250), 0, LWA_COLORKEY);
         break;
 
@@ -806,24 +765,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             switch (wmId)
             {
             case IDB_START:
-
-                SetTimer(hWnd, 1, milliseconds, NULL);
-                interp.startSampling();
-        
+                interp.startSampling();    
                 break;
-
             case IDB_STOP:
                 interp.stopSampling();
-
                 break;
-
             case IDM_ABOUT:
                 DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
                 break;
             case IDM_EXIT:
                 DestroyWindow(hWnd);
                 break;
-
             case ID_REMOCT:
                 interp.removeOctave(hWnd);
                 break;
@@ -845,28 +797,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         }
         break;
-
     case WM_MOVE:
         interp.windowLocation.x = (int)(short)LOWORD(lParam);   // horizontal position 
         interp.windowLocation.y = (int)(short)HIWORD(lParam);   // vertical position 
         break;
-
-    case WM_TIMER:
-
-
-        interp.timerTick();
-        // set midi file encoding here! not at screen refresh!!
-
-
-        break;
     case WM_PAINT:
         {
             PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-      
+            HDC hdc = BeginPaint(hWnd, &ps);  
             interp.renderTransparent(hdc);
-            interp.makeRectangles(hdc);
-            
+            interp.makeRectangles(hdc);       
             EndPaint(hWnd, &ps);          
         }
         break;
@@ -882,15 +822,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
     hInst = hInstance; // Store instance handle in our global variable
-    
-  //  HWND hwnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-  //      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-
-
     POINT offset = interp.points[interp.point_topLeft];
-
     offset.y -= 150;
 
+    // BUTTONS :DD
+    
     HWND hWnd = CreateWindowEx(
         WS_EX_LAYERED,                // Extended window style
         szWindowClass,             // Class name

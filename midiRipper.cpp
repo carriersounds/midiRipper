@@ -18,13 +18,14 @@ using std::string;
 using std::vector;
 using std::thread;
 using std::to_string;
+using std::chrono::high_resolution_clock;
 
 using namespace smf;
 
 #define MAX_LOADSTRING 100
 #define inc(x) x = (x == 0xFFFFFFFF) ? 0 : x + 1
 #define interp Interpreter::getInstance()
-#define now std::chrono::high_resolution_clock::now()
+#define now(x) std::chrono::high_resolution_clock::now(x)
 
 typedef vector<BYTE> pianoColors;
 typedef std::chrono::high_resolution_clock::time_point timepoint;
@@ -50,17 +51,17 @@ public:
     Counter(float bpm, float tpb): elapsedMicroSeconds(0) {
 
         setTicksPerMicroSecond(bpm, tpb);
-        mFPS_previous = now;
-        mFPS_current = now;
-        startMidiTicks = now;
+        mFPS_previous = now();
+        mFPS_current = now();
+        startMidiTicks = now();
     }
 
     Counter() {
         setTicksPerMicroSecond(120, 60);
         elapsedMicroSeconds = 0;
-        mFPS_previous = now;
-        mFPS_current = now;
-        startMidiTicks = now;
+        mFPS_previous = now();
+        mFPS_current = now();
+        startMidiTicks = now();
     }
 
     void setTicksPerMicroSecond(float bpm, float tpb) {
@@ -78,7 +79,7 @@ public:
     }
 
     double getFPS() {
-        mFPS_current = now;
+        mFPS_current = now();
         size_t duration = std::chrono::duration_cast<std::chrono::microseconds> (mFPS_current - mFPS_previous).count();
         mFPS_previous = mFPS_current;
         double FPS = 1e6 / duration;
@@ -86,14 +87,14 @@ public:
     }
 
     int getDeltaTick() {
-        midiEventTick = now;
+        midiEventTick = now();
         elapsedMicroSeconds = std::chrono::duration_cast<std::chrono::microseconds> (midiEventTick - startMidiTicks).count();
-        startMidiTicks = now;
+        startMidiTicks = now();
         return elapsedMicroSeconds * tickRate;
     }
 
     int getAbsTick() {
-        midiEventTick = now;
+        midiEventTick = now();
         elapsedMicroSeconds = std::chrono::duration_cast<std::chrono::microseconds> (midiEventTick - startMidiTicks).count();
         return elapsedMicroSeconds * tickRate;
     }

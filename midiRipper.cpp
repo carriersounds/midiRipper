@@ -1,18 +1,7 @@
 // midiRipper.cpp : Defines the entry point for the application.
-//
 
-#include "framework.h"
 #include "midiRipper.h"
-#include <string>
-#include "MidiFile.h"
-#include "debugapi.h"
-#include "windowsx.h"
-#include <vector>
-#include <thread>
-#include <mutex>
-#include <atomic>
-#include <chrono>
-#include <excpt.h>
+
 
 using std::string;
 using std::vector;
@@ -32,18 +21,17 @@ typedef std::chrono::high_resolution_clock::time_point timepoint;
 
 
 // Global Variables:
-HINSTANCE hInst;                                // current instance
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+//HINSTANCE hInst;                                // current instance
+//WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
+//WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 
 // Forward declarations of functions included in this code module:
-ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+//ATOM                MyRegisterClass(HINSTANCE hInstance);
+//BOOL                InitInstance(HINSTANCE, int);
+//LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+//INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 
- 
 
 class Counter {
 
@@ -701,7 +689,7 @@ public:
 
  };
 
-
+ /*
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
     _In_ LPWSTR    lpCmdLine,
@@ -954,5 +942,5 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     }
     return (INT_PTR)FALSE;
 }
-
+*/
 

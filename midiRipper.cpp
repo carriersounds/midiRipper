@@ -1,23 +1,31 @@
 // midiRipper.cpp : Defines the entry point for the application.
 
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx11.h"
+#include <string>
+#include <vector>
+#include <thread>
+#include <mutex>
+#include <atomic>
+#include <chrono>
+#include <excpt.h>
+#include <d3d11.h>
+#include <tchar.h>
 #include "midiRipper.h"
 
 
-using std::string;
+using namespace smf;
 using std::vector;
 using std::thread;
 using std::to_string;
 using std::chrono::high_resolution_clock;
-
-using namespace smf;
-
-#define MAX_LOADSTRING 100
-#define inc(x) x = (x == 0xFFFFFFFF) ? 0 : x + 1
-#define interp Interpreter::getInstance()
-#define now(x) std::chrono::high_resolution_clock::now(x)
+using std::string;
 
 typedef vector<BYTE> pianoColors;
 typedef std::chrono::high_resolution_clock::time_point timepoint;
+
+// to make conversion easier with my old POINT-based code
 
 
 // Global Variables:
@@ -30,7 +38,6 @@ typedef std::chrono::high_resolution_clock::time_point timepoint;
 //BOOL                InitInstance(HINSTANCE, int);
 //LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 //INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-
 
 
 class Counter {
@@ -101,22 +108,12 @@ private:
     double tickRate; // ticks per second
 };
 
-class Interpreter {
 
-public:
+    //~Interpreter() {}
+   // Interpreter(const Interpreter&) = delete; // Delete copy constructor
+    //Interpreter& operator=(const Interpreter&) = delete; // Delete assignment operator
 
-    static Interpreter& getInstance() {
-        static Interpreter instance;
-        return instance;
-    }
-
-private:
-
-    ~Interpreter() {}
-    Interpreter(const Interpreter&) = delete; // Delete copy constructor
-    Interpreter& operator=(const Interpreter&) = delete; // Delete assignment operator
-
-    Interpreter() {
+Interpreter::Interpreter() {
 
        isDragging.resize(100);
        squares.resize(100);
@@ -126,8 +123,6 @@ private:
        windowLocation = { 0,0 };
 
        piano = { 100,200,200,300 };      // Initial rectangle position and size
-       points[point_topLeft] = { piano.left, piano.top };
-       points[point_botRight] = { piano.right, piano.bottom };
        points[point_sample] = { ((piano.right + piano.left) >> 1), ((piano.bottom + piano.top) >> 1) }; // middle
 
 
@@ -144,64 +139,18 @@ private:
        oldPixelValues.resize(1);
        wasPressed.resize(1);
     }
-
-public:
-
-    enum isDragging {
-
-        point_sample,
-        point_topLeft = 98,
-        point_botRight = 99
-   
-    };
-    enum eventDetails {
-        OnOff, Note, Velocity
-    };
-
-    vector<string> keyNames = {
-        "C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"
-    };
-
-    RECT piano; 
-    POINT absolutePT;
-    POINT windowLocation;
-
-
-    // Dots & interactive GUI
-    vector<RECT> squares;
-    vector<bool> isDragging;
-    vector<POINT> points;
-    vector<POINT> absolutePoints;
-    int squareID;
-    int amountOfSamples;
-    int octaveCount;
-    double noteOffset = 0;
-    bool moved = false;
-
-
-    // sampling & data processing
-    bool isSampling = 0;
-    thread samplingThread;
-    int time;
-    std::mutex LockMap;
-    HDC hdcScreen = nullptr;
-    HDC hdcMem = nullptr;
-    HBITMAP hBitmap = nullptr;
-    RECT captureRect = { 0, 0, 0, 0 };
-
-    pianoColors oldPixelValues;
-    vector<bool> wasPressed;
-
-    int bufferIndex = 0;
-
-    void log(string text) {
+    
+void Interpreter::log(string text) {
 
         OutputDebugStringA(text.data());
     }
-    RECT pCreateRect(const POINT& topLeft, const POINT& bottomRight) {
+RECT Interpreter::pCreateRect(const POINT& topLeft, const POINT& bottomRight) {
         return { topLeft.x, topLeft.y, bottomRight.x, bottomRight.y };
     }
-    RECT pCreateRect(const POINT& center, int radius = 5) {
+RECT Interpreter::pCreateRect(const ImVec2& topLeft, const ImVec2& bottomRight) {
+    return { (LONG)topLeft.x, (LONG)topLeft.y, (LONG)bottomRight.x, (LONG)bottomRight.y };
+}
+RECT Interpreter::pCreateRect(const POINT& center, int radius = 5) {
         return {
             center.x - radius,
             center.y - radius,
@@ -210,37 +159,16 @@ public:
         };
     }
 
-    void renderTransparent(HDC hdc) {
-     
 
-        // Fill the whole window with transparency
-        HBRUSH hTransparentBrush = CreateSolidBrush(RGB(250, 250, 250)); // Transparent color
-        HBRUSH hRedBrush = CreateSolidBrush(RGB(255, 40, 40));    // red
-
-     //   SelectObject(hdc, hTransparentBrush);
-
-        RECT transparentRect = { piano.left+5, piano.top+5, piano.right-5,piano.bottom-5 };
-        RECT stroke = { points[point_topLeft].x - 1,points[point_topLeft].y - 1, points[point_botRight].x + 1, points[point_botRight].y + 1 };
-
-
-        FillRect(hdc, &stroke, hRedBrush);
-        FillRect(hdc, &transparentRect, hTransparentBrush);
- 
-
-        // Clean up
-        DeleteObject(hRedBrush);
-        DeleteObject(hTransparentBrush);
-
-
-    }
-    void updatePiano() {
+void Interpreter::updatePiano() {
 
         if (!LockMap.try_lock()) {
 
             return;
         }
 
-        piano = pCreateRect(points[point_topLeft], points[point_botRight]);
+        piano = pCreateRect(windowPos, windowSize.add(windowPos));
+
 
         if (!octaveCount) {   
             points[point_sample] = { ((piano.right + piano.left) >> 1), ((piano.bottom + piano.top) >> 1) }; // middle
@@ -310,28 +238,28 @@ public:
         LockMap.unlock();
 
     }
-    void changeOffset(HWND hWnd, int increase) {
+void Interpreter::changeOffset(int increase) {
  
         noteOffset += (increase > 0) ? 0.005 : -0.005;
 
         updatePiano();
-        InvalidateRect(hWnd, NULL, TRUE);
+        //InvalidateRect(hWnd, NULL, TRUE);
     }
-    void addOctave(HWND hWnd) {
+void Interpreter::addOctave() {
         
         octaveCount++;
 
         updatePiano();
-        InvalidateRect(hWnd, NULL, TRUE);
+       // InvalidateRect(hWnd, NULL, TRUE);
     }
-    void removeOctave(HWND hWnd) {
+void Interpreter::removeOctave() {
 
         octaveCount--;
 
         updatePiano();
-        InvalidateRect(hWnd, NULL, TRUE);
+        //InvalidateRect(hWnd, NULL, TRUE);
     }
-    void makeRectangles(HDC hdc){
+void Interpreter::makeRectangles(HDC hdc){
 
 
         HBRUSH lineColor = CreateSolidBrush(RGB(255, 40, 40));    
@@ -369,74 +297,7 @@ public:
 
 
     }
-    void handleMouseDrag(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-
-
-        POINT clickPos = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-
-        switch (message){
-            case WM_LBUTTONDOWN:
-
-                log("mouse CLICK at: " + to_string(clickPos.x) + ", " + to_string(clickPos.y) + "\n");
-                log("topleft is at: " + to_string(points[point_topLeft].x) + ", " + to_string(points[point_topLeft].y) + "\n");
-                log("botright is at: " + to_string(points[point_botRight].x) + ", " + to_string(points[point_botRight].y) + "\n");
-
-                for (size_t pointIndex = 0; pointIndex < 100; pointIndex++)
-                {
-                    if (PtInRect(&(squares[pointIndex]), clickPos)) {
-                        squareID = pointIndex; 
-                        break;
-                    }
-                    squareID = -1;    
-                }
-
-                if (squareID == -1) return;
-
-                isDragging[squareID] = true;
-                points[squareID] = clickPos;
-
-                SetCapture(hWnd);
-                
-                break;
-            case WM_MOUSEMOVE:
-
-                if (squareID == -1) return;
-
-                if (isDragging[squareID]) {
-                    // Calculate offset and update rectangle position
-                    int offsetX = GET_X_LPARAM(lParam) - points[squareID].x;
-                    int offsetY = GET_Y_LPARAM(lParam) - points[squareID].y;
-                    points[squareID].x += offsetX;
-                    points[squareID].y += offsetY;
-
-                    updatePiano();
-                    InvalidateRect(hWnd, NULL, 1);  // Redraw window
-                }
-                break;
-
-            case WM_LBUTTONUP:
-
-                log("mouse RELEASE at: " + to_string(clickPos.x) + ", " + to_string(clickPos.y) + "\n");
-                log("topleft is at: " + to_string(points[point_topLeft].x) + ", " + to_string(points[point_topLeft].y) + "\n");
-                log("botright is at: " + to_string(points[point_botRight].x) + ", " + to_string(points[point_botRight].y) + "\n");
-                log("Rectangle size = : " + to_string(points[point_botRight].x- points[point_topLeft].x) + " X " + to_string(points[point_botRight].y - points[point_topLeft].y) + "\n\n");
-
- 
-
-                isDragging[point_botRight] = false;
-                isDragging[point_topLeft] = false;
-                squareID = -1;
-
-                updatePiano();              
-                ReleaseCapture();
-
-
-                break;
-        }
-
-    }
-  
-    void startSampling() {
+void Interpreter::startSampling() {
 
         isSampling = 1;
 
@@ -448,17 +309,16 @@ public:
 
 
     }
-    void stopSampling() {
+void Interpreter::stopSampling() {
 
         isSampling = 0;
     }
-
-    void setEmpty() {
+void Interpreter::setEmpty() {
         oldPixelValues = sampleBitmap();
     }
 
-    // start measuring instance
-    void getColor() {
+
+void Interpreter::getColor() {
      
         hdcScreen = GetDC(NULL);
         hdcMem = CreateCompatibleDC(hdcScreen);
@@ -487,11 +347,10 @@ public:
         //  counter.printFPS();
         }
 
-        OutputDebugStringA(to_string(saveMidiFile(outFile)).data());
+       // OutputDebugStringA(to_string(saveMidiFile(outFile)).data());
 
     }
-   
-    bool saveMidiFile(MidiFile& out) {
+bool Interpreter::saveMidiFile(MidiFile& out) {
             
         out.sortTracks();
 
@@ -508,8 +367,7 @@ public:
 
        return out.write(FullDirectory);
     }
-
-    int detectNoteEvent(pianoColors& sampo, MidiFile& outFile, int tick) {
+int Interpreter::detectNoteEvent(pianoColors& sampo, MidiFile& outFile, int tick) {
 
         const int defaultVelocity = 64;
         string samplingMoment;
@@ -540,10 +398,9 @@ public:
 
         return changesDetected; // if change detected, = 0;
     }
+pianoColors Interpreter::sampleBitmap() {
 
-    pianoColors sampleBitmap() {
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
         pianoColors grayscales(amountOfSamples);
         LockMap.lock();
@@ -555,7 +412,7 @@ public:
 
         hBitmap = CreateCompatibleBitmap(hdcScreen, width, height);
         SelectObject(hdcMem, hBitmap);
-        BitBlt(hdcMem, 0, 0, width, height, hdcScreen, windowLocation.x + piano.left, windowLocation.y + piano.top, SRCCOPY);
+        BitBlt(hdcMem, 0, 0, width, height, hdcScreen, piano.left, piano.top, SRCCOPY);
 
         // Prepare to extract pixel data
         BITMAPINFO bmi = { 0 };
@@ -585,7 +442,7 @@ public:
             bfh.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
 
             // Open file to write the bitmap
-            std::ofstream file("A:/Music/Production/Electronics/midiRipper/recording.bmp", std::ios::binary);
+            std::ofstream file("A:/Documents/Tech Projects/Code & Software/midiRipper/imgui.bmp", std::ios::binary);
 
             // Write the file header, bitmap info header, and pixel data
             file.write(reinterpret_cast<char*>(&bfh), sizeof(BITMAPFILEHEADER));
@@ -617,8 +474,7 @@ public:
 
         return grayscales;
     }
-
-    void printEvent(vector<uchar> mEvent) {
+void Interpreter::printEvent(vector<uchar> mEvent) {
 
 
         int octave = mEvent[Note] / 12;     // rounded down
@@ -629,8 +485,7 @@ public:
         string output = "[Press " + state + keyNames[key] + to_string(octave) + "\n";
         OutputDebugStringA(output.data());
     }
-
-    int createMidiFile() {
+int Interpreter::createMidiFile() {
 
         // example function from midifile library I used for learning
 
@@ -687,10 +542,47 @@ public:
     
     }
 
- };
 
- /*
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
+void Interpreter::renderFrame() {
+
+    ImGui::SetNextWindowBgAlpha(0.00f);
+    ImGui::Begin("Rendering frame");// , nullptr, ImGuiWindowFlags_NoBackground);
+
+    windowPos = ImGui::GetWindowPos();
+    windowSize = ImGui::GetWindowSize();
+
+
+    updatePiano();
+
+    ImVec2 clickPos = ImGui::GetMousePos();
+
+
+    log("topleft is  at: " + to_string(windowPos.x) + ", " + to_string(windowPos.y) + "\n");
+    log("botright is at: " + to_string(windowSize.x) + ", " + to_string(windowSize.y) + "\n");
+
+    log("PIANO:\n");
+    log("top   = " + to_string(piano.top) +
+        "\nleft  = " + to_string(piano.left) +
+        "\nbottom= " + to_string(piano.bottom) +
+        "\nright = " + to_string(piano.right) + "\n\n");
+
+
+
+    ImGui::End();
+
+}
+
+void Interpreter::renderMain() {
+
+
+
+
+}
+
+
+/*
+ 
+int APIENTRY wwWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
     _In_ LPWSTR    lpCmdLine,
     _In_ int       nCmdShow)
@@ -729,7 +621,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 }
 
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK wWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
@@ -774,6 +666,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             case ID_OFFSETPLUS:
                 interp.changeOffset(hWnd, 1);
                 break;
+                break;
             case ID_OFFSETMINUS:
                 interp.changeOffset(hWnd, -1);
                 break;
@@ -808,7 +701,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+BOOL wInitInstance(HINSTANCE hInstance, int nCmdShow)
 {
     hInst = hInstance; // Store instance handle in our global variable
     POINT offset = interp.points[interp.point_topLeft];
@@ -903,14 +796,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     return TRUE;
 }
 
-ATOM MyRegisterClass(HINSTANCE hInstance)
+ATOM wMyRegisterClass(HINSTANCE hInstance)
 {
     WNDCLASSEXW wcex;
 
     wcex.cbSize = sizeof(WNDCLASSEX);
 
     wcex.style = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc = WndProc;
+    wcex.lpfnWndProc = wWndProc;
     wcex.cbClsExtra = 0;
     wcex.cbWndExtra = 0;
     wcex.hInstance = hInstance;
@@ -924,7 +817,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     return RegisterClassExW(&wcex);
 }
 
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK wAbout(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER(lParam);
     switch (message)
@@ -942,5 +835,5 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     }
     return (INT_PTR)FALSE;
 }
-*/
 
+*/

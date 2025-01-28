@@ -166,7 +166,6 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\Libraries\imgui-docking\examples\example_win32_directx11\main.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
     <ClCompile Include="imgui\imgui_demo.cpp" />
     <ClCompile Include="imgui\imgui_draw.cpp" />
@@ -174,6 +173,7 @@
     <ClCompile Include="imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="imgui\imgui_tables.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="midifile-master\src\Binasc.cpp" />
     <ClCompile Include="midifile-master\src\MidiEvent.cpp" />
     <ClCompile Include="midifile-master\src\MidiEventList.cpp" />

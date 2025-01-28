@@ -89,9 +89,6 @@
     <ClCompile Include="midifile-master\src\MidiEventList.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\Libraries\imgui-docking\examples\example_win32_directx11\main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="imgui\imgui_impl_dx11.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
@@ -114,6 +111,9 @@
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
     <ClCompile Include="midiRipper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

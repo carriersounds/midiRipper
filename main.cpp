@@ -6,12 +6,12 @@
 // - Documentation        https://dearimgui.com/docs (same as your local docs/ folder).
 // - Introduction, links and more at the top of imgui.cpp
 
-#include "imgui.h"
-#include "imgui_impl_win32.h"
-#include "imgui_impl_dx11.h"
+
 #include <d3d11.h>
 #include <tchar.h>
-// gui 2
+#include "..\midiRipper.h"
+
+
 // Data
 static ID3D11Device*            g_pd3dDevice = nullptr;
 static ID3D11DeviceContext*     g_pd3dDeviceContext = nullptr;
@@ -25,17 +25,27 @@ bool CreateDeviceD3D(HWND hWnd);
 void CleanupDeviceD3D();
 void CreateRenderTarget();
 void CleanupRenderTarget();
+void CaptureScreenshot(ID3D11Device* device, ID3D11DeviceContext* context, ID3D11RenderTargetView* rtv, int width, int height);
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 // Main code
 int main(int, char**)
 {
     // Create application window
-    //ImGui_ImplWin32_EnableDpiAwareness();
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
     ::RegisterClassExW(&wc);
-    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Dear ImGui DirectX11 Example", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
 
+
+    HWND hwnd = ::CreateWindowW(wc.lpszClassName, 
+        L"Rendering BG", 
+        WS_OVERLAPPEDWINDOW,
+        0, 0, 
+        GetSystemMetrics(SM_CXSCREEN), 
+        GetSystemMetrics(SM_CYSCREEN), 
+        nullptr, nullptr, wc.hInstance, nullptr
+    );
+
+  
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd))
     {
@@ -54,14 +64,35 @@ int main(int, char**)
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
+    //io.ConfigViewportsNoAutoMerge = true;
+    //io.ConfigViewportsNoTaskBarIcon = true;
+    //io.ConfigViewportsNoDefaultParent = true;
+    //io.ConfigDockingAlwaysTabBar = true;
+    //io.ConfigDockingTransparentPayload = true;
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsLight();
 
+    // When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
+    ImGuiStyle& style = ImGui::GetStyle();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
+
+
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
+    ImGui_ImplWin32_EnableAlphaCompositing(hwnd);
+
+   // SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED | WS_EX_TRANSPARENT); 
+   // SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), 0, LWA_COLORKEY);
+
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
@@ -78,11 +109,17 @@ int main(int, char**)
     //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
     //IM_ASSERT(font != nullptr);
-
     // Our state
     bool show_demo_window = true;
     bool show_another_window = false;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImVec4 clear_color = ImVec4(1.0f, 1.0f, 1.0f, 0.05f);
+
+    Interpreter interp;
+
+    bool doscreen = false;
+
+    bool hoveringSettings = true;
+
 
     // Main loop
     bool done = false;
@@ -123,51 +160,59 @@ int main(int, char**)
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
+        hoveringSettings = false;
 
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
-        {
-            static float f = 0.0f;
-            static int counter = 0;
+        // ++++++++++++++++++++++++++++++++++++-------  C U S T O M   ELEMENTS    --------++++++++++++++++++++++++++++++++
 
-            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+        ImGui::Begin("MIDI Ripper", nullptr, ImGuiWindowFlags_NoCollapse);
+        hoveringSettings |= ImGui::IsWindowHovered();
 
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
+        //interp.renderMain();
 
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+        if (ImGui::Button("Start Sampling")) interp.startSampling();
+        if (ImGui::Button("Stop Sampling")) interp.stopSampling();
 
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
+        if (ImGui::Button("Add Octave")) interp.addOctave();
+        if (ImGui::Button("Remove Octave")) interp.removeOctave();
 
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
-        }
+        ImVec2 mousePos = ImGui::GetMousePos();
+        ImGui::Text("Mouse Position: (%.1f, %.1f)", mousePos.x, mousePos.y);
 
-        // 3. Show another simple window.
-        if (show_another_window)
-        {
-            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
-            ImGui::End();
-        }
+ 
+        if (ImGui::Button("Exit")) interp.isSampling = false;
+        doscreen = ImGui::Button("Take Screenshot");
+
+        if (doscreen) interp.startSampling();
 
 
+        ImGui::End();
 
-        // Rendering
+        //------------------RENDERING FRAME--------------------//
+
+        interp.renderFrame();
+
+
+        //ImGui::ShowMetricsWindow();
+
+        // ++++++++++++++++++++++++++++++++++++-------  C U S T O M   R E N D E R I N G   --------++++++++++++++++++++++++++++++++
+
         ImGui::Render();
+
+        // transp BG
         const float clear_color_with_alpha[4] = { clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w };
         g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, nullptr);
         g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color_with_alpha);
+        
+        
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+
+        // Update and Render additional Platform Windows
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+        {
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+        }
 
         // Present
         HRESULT hr = g_pSwapChain->Present(1, 0);   // Present with vsync
@@ -187,8 +232,104 @@ int main(int, char**)
     return 0;
 }
 
-// Helper functions
 
+
+
+
+/*       
+
+        // ++++++++++++++++++++++++++++++++++++-------  C U S T O M   ELEMENTS    --------++++++++++++++++++++++++++++++++
+
+
+      //  ImGuiWindowFlags window_flags = 0;
+      //  window_flags |= ImGuiWindowFlags_NoBackground;
+      //  window_flags |= ImGuiDockNodeFlags_PassthruCentralNode;
+
+
+
+        // ++++++++++++++++++++++++++++++++++++-------  C U S T O M   R E N D E R I N G   --------++++++++++++++++++++++++++++++++
+
+
+//demo
+         if (0)
+            ImGui::ShowDemoWindow(&show_demo_window);
+
+        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+      if(0) {
+            static float f = 0.0f;
+            static int counter = 0;
+
+            ImGui::Begin("midiRipper - imGUI version");                          // Create a window called "Hello, world!" and append into it.
+
+            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+            ImGui::Checkbox("Another Window", &show_another_window);
+
+            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+
+            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+                counter++;
+            ImGui::SameLine();
+            ImGui::Text("counter = %d", counter);
+
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            ImGui::End();
+      }
+*/
+
+void CaptureScreenshot(ID3D11Device* device, ID3D11DeviceContext* context, ID3D11RenderTargetView* rtv, int width, int height) {
+    // Get the resource from the render target view
+    ID3D11Resource* backBuffer = nullptr;
+    rtv->GetResource(&backBuffer);
+
+    // Create a staging texture for reading data
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = width;
+    desc.Height = height;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_STAGING;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+    ID3D11Texture2D* stagingTexture = nullptr;
+    HRESULT hr = device->CreateTexture2D(&desc, nullptr, &stagingTexture);
+    if (FAILED(hr)) {
+        printf("Failed to create staging texture\n");
+        return;
+    }
+
+    // Copy the render target data to the staging texture
+    context->CopyResource(stagingTexture, backBuffer);
+
+    // Map the staging texture to read the pixel data
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    hr = context->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mappedResource);
+    if (SUCCEEDED(hr)) {
+        // Pixel data is in mappedResource.pData
+        BYTE* data = reinterpret_cast<BYTE*>(mappedResource.pData);
+        int rowPitch = mappedResource.RowPitch;
+
+        // Save or process the data here
+        std::ofstream file("screenshot.txt", std::ios::binary);
+        file.write(reinterpret_cast<char*>(data), rowPitch * height);
+        file.close();
+
+        context->Unmap(stagingTexture, 0);
+    }
+    else {
+        printf("Failed to map staging texture\n");
+    }
+
+    // Release resources
+    backBuffer->Release();
+    stagingTexture->Release();
+}
+
+
+// Helper functions
 bool CreateDeviceD3D(HWND hWnd)
 {
     // Setup swap chain
@@ -243,6 +384,10 @@ void CleanupRenderTarget()
     if (g_mainRenderTargetView) { g_mainRenderTargetView->Release(); g_mainRenderTargetView = nullptr; }
 }
 
+#ifndef WM_DPICHANGED
+#define WM_DPICHANGED 0x02E0 // From Windows SDK 8.1+ headers
+#endif
+
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -271,6 +416,15 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_DESTROY:
         ::PostQuitMessage(0);
         return 0;
+    case WM_DPICHANGED:
+        if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_DpiEnableScaleViewports)
+        {
+            //const int dpi = HIWORD(wParam);
+            //printf("WM_DPICHANGED to %d (%.0f%%)\n", dpi, (float)dpi / 96.0f * 100.0f);
+            const RECT* suggested_rect = (RECT*)lParam;
+            ::SetWindowPos(hWnd, nullptr, suggested_rect->left, suggested_rect->top, suggested_rect->right - suggested_rect->left, suggested_rect->bottom - suggested_rect->top, SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+        break;
     }
     return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }

@@ -8,16 +8,16 @@ This tool was created as a personal experiment to combine my interests in coding
 
 ## Features
 
-- **Screen Pixel Sampling**: Samples screen pixels from a piano overlay at ~60fps using WinGDI bitmap sampling.
+- **Screen Pixel Sampling**: Samples screen pixels from a piano overlay at ~90fps using  bitmap sampling.
 - **MIDI File Generation**: Creates fully functional MIDI files using the [midifile library](https://github.com/craigsapp/midifile).
-- **Simple Setup**: Made in C++ with WinGDI for minimal dependencies (and because I've never used other GUI frameworks).
+- **Simple Setup**: Made in C++ with imGUI and Visual Studio
 - **Customizable Regions**: Define screen sample area, choose number of octaves to sample etc...
 
 ---
 
 ## How It Works
 
-1. **Pixel Sampling**: midiripper identifies piano key activity by sampling screen regions at a frame rate of ~60fps. Each sampled point corresponds to a specific piano key.
+1. **Pixel Sampling**: midiripper identifies piano key activity by sampling screen regions at a frame rate of ~90fps. Each sampled point corresponds to a specific piano key.
 2. **Note Detection**: Based on pixel color or brightness changes, it determines which keys are pressed.
 3. **Note**: The "not pressed" piano colors are sampled when sampling starts. It will assume a deviation from those colors is a pressed note. This makes it compatible with any piano colors.
 4. **MIDI Encoding**: Detected key events are converted into MIDI note events, and a MIDI file is generated.
@@ -27,24 +27,27 @@ This tool was created as a personal experiment to combine my interests in coding
 
 ## Requirements
 
-- **Platform**: Windows (uses WinGDI for screen sampling).
+- **Platform**: Windows (DirectX11 Win32).
 - **Language**: C++
 - **Visual Studio 2019**: Compiled using VS2019
-- **Libraries**: [midifile](https://github.com/craigsapp/midifile) (MIT Licence)
+- **Libraries**: [midifile](https://github.com/craigsapp/midifile) & [dearImGui](https://github.com/ocornut/imgui/tree/docking) (both MIT Licence)
 
 ---
 ## Future-updates
 
--  I'm working on a viable sensitivity slider for a wider range of detection
+-  Viable sensitivity slider for a wider range of detection
 -  Definitely need to make a recording indicator!! + prompt to save midi file
--  I'm considering a UI revamp with [Dear ImGui](https://github.com/ocornut/imgui) in future updates for better usability.
--  This is just a side project for fun, but contributions, suggestions, and feedback are welcome.
+-  Option for automatic octaveCount setter
+-  Image processing for auto-aligning piano without user setup? Line detection algorithm maybe? Could be very cool to design 
+
 -  I don't really know how pull requests or git stuff works yet so you'll have to guide me on that if you'd like to contribute.
+-  [DONE] I'm considering a UI revamp with [Dear ImGui](https://github.com/ocornut/imgui) in future updates for better usability.
 
 ---
 
 ## Acknowledgments
 - Thanks to [Craig Sapp](https://github.com/craigsapp) for the [midifile library](https://github.com/craigsapp/midifile). Saved me a lot of headache
+- And thanks to the Cherno for introducing me to ImGui :)) it's already making my life easier
 
 
 

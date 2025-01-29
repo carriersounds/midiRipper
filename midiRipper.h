@@ -58,7 +58,7 @@ public:
 
     Interpreter();
 
-    void renderMain();
+    void renderUserInput();
     void renderFrame();
 
     void log(string text);
@@ -70,9 +70,8 @@ public:
     void changeOffset(int increase);
     void addOctave();
     void removeOctave();
-    void makeRectangles(HDC hdc);
-    void handleMouseDrag(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-
+    void makeRectangles();
+ 
     void startSampling();
     void stopSampling();
 

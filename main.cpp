@@ -38,12 +38,14 @@ int main(int, char**)
 
     HWND hwnd = ::CreateWindowW(wc.lpszClassName, 
         L"Rendering BG", 
-        WS_OVERLAPPEDWINDOW,
-        0, 0, 
-        GetSystemMetrics(SM_CXSCREEN), 
-        GetSystemMetrics(SM_CYSCREEN), 
-        nullptr, nullptr, wc.hInstance, nullptr
-    );
+        WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
+        5, 5, 
+        GetSystemMetrics(SM_CXSCREEN)-10, 
+        GetSystemMetrics(SM_CYSCREEN)-10, 
+        nullptr, nullptr, wc.hInstance, nullptr 
+    );  // 5 pixels less than fullscreen, prevents youtube videos from going blurry for some reason??
+        // why is youtube blurring it when it's windowed fullscreen? even without maximize?
+
 
   
     // Initialize Direct3D
@@ -165,29 +167,22 @@ int main(int, char**)
         // ++++++++++++++++++++++++++++++++++++-------  C U S T O M   ELEMENTS    --------++++++++++++++++++++++++++++++++
 
         ImGui::Begin("MIDI Ripper", nullptr, ImGuiWindowFlags_NoCollapse);
-        hoveringSettings |= ImGui::IsWindowHovered();
 
-        //interp.renderMain();
 
-        if (ImGui::Button("Start Sampling")) interp.startSampling();
-        if (ImGui::Button("Stop Sampling")) interp.stopSampling();
 
-        if (ImGui::Button("Add Octave")) interp.addOctave();
-        if (ImGui::Button("Remove Octave")) interp.removeOctave();
+        interp.renderUserInput();
 
-        ImVec2 mousePos = ImGui::GetMousePos();
-        ImGui::Text("Mouse Position: (%.1f, %.1f)", mousePos.x, mousePos.y);
 
- 
         if (ImGui::Button("Exit")) interp.isSampling = false;
         doscreen = ImGui::Button("Take Screenshot");
-
         if (doscreen) interp.startSampling();
 
 
         ImGui::End();
 
         //------------------RENDERING FRAME--------------------//
+
+        //ImGui::ShowDemoWindow(&show_demo_window);
 
         interp.renderFrame();
 

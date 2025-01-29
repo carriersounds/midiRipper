@@ -301,8 +301,14 @@ struct ImVec2
     float                                   x, y;
     constexpr ImVec2()                      : x(0.0f), y(0.0f) { }
     constexpr ImVec2(float _x, float _y)    : x(_x), y(_y) { }
-    constexpr ImVec2(POINT& p)              : x(static_cast<float>(p.x)), y(static_cast<float>(p.y)) {}     // ADDED BY ME (LUCA)
-    ImVec2 add(ImVec2& o) { return { x + o.x, y + o.y };}                                                   // ADDED BY ME (LUCA)
+
+    // ADDED BY ME (LUCA)  
+    constexpr ImVec2(POINT& p)              : x(static_cast<float>(p.x)), y(static_cast<float>(p.y)) {}
+    ImVec2 operator+(ImVec2& in)            { return { x + in.x, y + in.y }; }
+    ImVec2 operator-(ImVec2& in)            { return { x - in.x ,y - in.y }; }
+    ImVec2 operator+(int& right)            { return { x + right,y + right }; }
+    ImVec2 operator-(int& right)            { return { x - right,y - right }; }
+
     float& operator[] (size_t idx)          { IM_ASSERT(idx == 0 || idx == 1); return ((float*)(void*)(char*)this)[idx]; } // We very rarely use this [] operator, so the assert overhead is fine.
     float  operator[] (size_t idx) const    { IM_ASSERT(idx == 0 || idx == 1); return ((const float*)(const void*)(const char*)this)[idx]; }
 //#ifdef IM_VEC2_CLASS_EXTRA

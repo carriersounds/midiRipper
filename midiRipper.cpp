@@ -167,7 +167,7 @@ void Interpreter::updatePiano() {
             return;
         }
 
-        piano = pCreateRect(windowPos, windowSize.add(windowPos));
+        piano = pCreateRect(windowPos, windowSize + windowPos);
 
 
         if (!octaveCount) {   
@@ -259,44 +259,6 @@ void Interpreter::removeOctave() {
         updatePiano();
         //InvalidateRect(hWnd, NULL, TRUE);
     }
-void Interpreter::makeRectangles(HDC hdc){
-
-
-        HBRUSH lineColor = CreateSolidBrush(RGB(255, 40, 40));    
-        HBRUSH sampledColor = CreateSolidBrush(RGB(255, 255, 255)); 
-        //full piano
-
-
-        squares[point_topLeft] = pCreateRect(points[point_topLeft], 8);
-        squares[point_botRight] = pCreateRect(points[point_botRight], 8);
-
-        for (size_t sPoint = 0; sPoint < amountOfSamples; sPoint++)
-        {
-            squares[sPoint] = pCreateRect(points[sPoint], 5);
-            FrameRect(hdc, &squares.at(sPoint), lineColor);
-        }
-
-        // piano frame
-        FrameRect(hdc, &piano, lineColor);
-
-        // grab points
-        FillRect(hdc, &squares[point_topLeft], lineColor);
-        FillRect(hdc, &squares[point_botRight], lineColor);
-
-        // sample point
-        FrameRect(hdc, &squares.at(point_sample), lineColor);
-
-        DeleteObject(lineColor);
-        DeleteObject(sampledColor);
-
-
-        log("topleft is at: " + to_string(points[point_topLeft].x) + ", " + to_string(points[point_topLeft].y) + "\n");
-        log("botright is at: " + to_string(points[point_botRight].x) + ", " + to_string(points[point_botRight].y) + "\n");
-        log("Rectangle size = : " + to_string(points[point_botRight].x - points[point_topLeft].x) + " X " + to_string(points[point_botRight].y - points[point_topLeft].y) + "\n\n");
-
-
-
-    }
 void Interpreter::startSampling() {
 
         isSampling = 1;
@@ -347,7 +309,7 @@ void Interpreter::getColor() {
         //  counter.printFPS();
         }
 
-       // OutputDebugStringA(to_string(saveMidiFile(outFile)).data());
+        OutputDebugStringA(to_string(saveMidiFile(outFile)).data());
 
     }
 bool Interpreter::saveMidiFile(MidiFile& out) {
@@ -551,15 +513,14 @@ void Interpreter::renderFrame() {
     windowPos = ImGui::GetWindowPos();
     windowSize = ImGui::GetWindowSize();
 
-
     updatePiano();
 
+    makeRectangles();
+
+
     ImVec2 clickPos = ImGui::GetMousePos();
-
-
     log("topleft is  at: " + to_string(windowPos.x) + ", " + to_string(windowPos.y) + "\n");
     log("botright is at: " + to_string(windowSize.x) + ", " + to_string(windowSize.y) + "\n");
-
     log("PIANO:\n");
     log("top   = " + to_string(piano.top) +
         "\nleft  = " + to_string(piano.left) +
@@ -567,14 +528,68 @@ void Interpreter::renderFrame() {
         "\nright = " + to_string(piano.right) + "\n\n");
 
 
-
     ImGui::End();
+}
+
+void Interpreter::makeRectangles() {
+
+    ImVec4 lineColor = { 255, 40, 40, 255 };
+
+ //   HBRUSH lineColor = CreateSolidBrush(RGB(255, 40, 40));
+
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    // Define rectangle coordinates (screen space)
+    ImVec2 top_left = windowPos;
+    ImVec2 bottom_right = windowPos + windowSize;
+
+
+    // Draw a rectangle (border only, no fill)
+    draw_list->AddRect(top_left, bottom_right, IM_COL32(255, 0, 0, 255), 0.5f, 0, 1.0f); // Red border, thickness 3.0f
+
+    int squareSize = 5;
+
+    // sample point
+
+    for (size_t sPoint = 0; sPoint < amountOfSamples; sPoint++)
+    {
+        points[sPoint];
+
+        ImVec2 samp = points[sPoint];
+
+        draw_list->AddRect(samp - squareSize, samp + squareSize, IM_COL32(255, 0, 0, 255), 0.5f, 0, 1.0f); // Red border, thickness 3.0f
+   
+    }
+
+    // piano frame
+  //  FrameRect(hdc, &piano, lineColor);
+
+    // grab points
+
+    log("topleft is at: " + to_string(points[point_topLeft].x) + ", " + to_string(points[point_topLeft].y) + "\n");
+    log("botright is at: " + to_string(points[point_botRight].x) + ", " + to_string(points[point_botRight].y) + "\n");
+    log("Rectangle size = : " + to_string(points[point_botRight].x - points[point_topLeft].x) + " X " + to_string(points[point_botRight].y - points[point_topLeft].y) + "\n\n");
+
+
 
 }
 
-void Interpreter::renderMain() {
+void Interpreter::renderUserInput() {
 
 
+
+    if (ImGui::Button("Start Sampling")) startSampling();
+    if (ImGui::Button("Stop Sampling")) stopSampling();
+
+    if (ImGui::Button("Add Octave")) addOctave();
+    if (ImGui::Button("Remove Octave")) removeOctave();
+
+    if (ImGui::Button("Offset +")) changeOffset(1);
+    if (ImGui::Button("Offset -")) changeOffset(-1);
+
+    ImVec2 mousePos = ImGui::GetMousePos();
+    ImGui::Text("Mouse Position: (%.1f, %.1f)", mousePos.x, mousePos.y);
 
 
 }

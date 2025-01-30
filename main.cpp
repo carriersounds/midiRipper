@@ -88,7 +88,7 @@ int main(int, char**)
     ImGui_ImplWin32_EnableAlphaCompositing(hwnd);
 
 
-    ImFont* font_roboto = io.Fonts->AddFontFromFileTTF("A:/Video Material/Fonts/Roboto-Black.ttf", 16.0f);
+    ImFont* font_roboto = io.Fonts->AddFontFromFileTTF("assets/Roboto-Black.ttf", 16.0f);
     ImFont* font_code = io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/consola.ttf", 16.0f);
     
     
@@ -141,7 +141,7 @@ int main(int, char**)
         interp.renderUserInput();
         ImGui::End();
 
-        ImGui::ShowDemoWindow();
+        //ImGui::ShowDemoWindow();
 
         interp.renderFrame();
         interp.renderMidiLog(font_code);

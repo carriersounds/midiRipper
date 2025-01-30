@@ -14,7 +14,6 @@
 #include <tchar.h>
 #include "midiRipper.h"
 
-
 using namespace smf;
 using std::vector;
 using std::thread;
@@ -24,8 +23,6 @@ using std::string;
 
 typedef vector<BYTE> pianoColors;
 typedef std::chrono::high_resolution_clock::time_point timepoint;
-
-// to make conversion easier with my old POINT-based code
 
 
 // Global Variables:
@@ -40,73 +37,6 @@ typedef std::chrono::high_resolution_clock::time_point timepoint;
 //INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 
-class Counter {
-
-public:
-    Counter(float bpm, float tpb): elapsedMicroSeconds(0) {
-
-        setTicksPerMicroSecond(bpm, tpb);
-        mFPS_previous = now();
-        mFPS_current = now();
-        startMidiTicks = now();
-    }
-
-    Counter() {
-        setTicksPerMicroSecond(120, 60);
-        elapsedMicroSeconds = 0;
-        mFPS_previous = now();
-        mFPS_current = now();
-        startMidiTicks = now();
-    }
-
-    void setTicksPerMicroSecond(float bpm, float tpb) {
-        tickRate = tpb * (bpm / 60e6);
-    }
-
-    // alias
-    void setTickRates(const float& bpm, const float& tpb) {
-        setTicksPerMicroSecond(bpm, tpb);
-    }
-
-    void printFPS() {
-        string output = to_string(getFPS()) + " FPS\n";
-        OutputDebugStringA(output.data());
-    }
-
-    double getFPS() {
-        mFPS_current = now();
-        size_t duration = std::chrono::duration_cast<std::chrono::microseconds> (mFPS_current - mFPS_previous).count();
-        mFPS_previous = mFPS_current;
-        double FPS = 1e6 / duration;
-        return FPS;
-    }
-
-    int getDeltaTick() {
-        midiEventTick = now();
-        elapsedMicroSeconds = std::chrono::duration_cast<std::chrono::microseconds> (midiEventTick - startMidiTicks).count();
-        startMidiTicks = now();
-        return elapsedMicroSeconds * tickRate;
-    }
-
-    int getAbsTick() {
-        midiEventTick = now();
-        elapsedMicroSeconds = std::chrono::duration_cast<std::chrono::microseconds> (midiEventTick - startMidiTicks).count();
-        return elapsedMicroSeconds * tickRate;
-    }
-
-
-
-
-private:
-    timepoint mFPS_current;
-    timepoint mFPS_previous;
-    
-    timepoint startMidiTicks;
-    timepoint midiEventTick;
-    size_t elapsedMicroSeconds;
-
-    double tickRate; // ticks per second
-};
 
 
     //~Interpreter() {}
@@ -140,10 +70,6 @@ Interpreter::Interpreter() {
        wasPressed.resize(1);
     }
     
-void Interpreter::log(string text) {
-
-        OutputDebugStringA(text.data());
-    }
 RECT Interpreter::pCreateRect(const POINT& topLeft, const POINT& bottomRight) {
         return { topLeft.x, topLeft.y, bottomRight.x, bottomRight.y };
     }
@@ -238,27 +164,7 @@ void Interpreter::updatePiano() {
         LockMap.unlock();
 
     }
-void Interpreter::changeOffset(int increase) {
- 
-        noteOffset += (increase > 0) ? 0.005 : -0.005;
 
-        updatePiano();
-        //InvalidateRect(hWnd, NULL, TRUE);
-    }
-void Interpreter::addOctave() {
-        
-        octaveCount++;
-
-        updatePiano();
-       // InvalidateRect(hWnd, NULL, TRUE);
-    }
-void Interpreter::removeOctave() {
-
-        octaveCount--;
-
-        updatePiano();
-        //InvalidateRect(hWnd, NULL, TRUE);
-    }
 void Interpreter::startSampling() {
 
         isSampling = 1;
@@ -281,7 +187,8 @@ void Interpreter::setEmpty() {
 
 
 void Interpreter::getColor() {
-     
+    
+        doneSaving = false;
         hdcScreen = GetDC(NULL);
         hdcMem = CreateCompatibleDC(hdcScreen);
   
@@ -298,7 +205,6 @@ void Interpreter::getColor() {
         outFile.addTrack(1);
         oldPixelValues = sampleBitmap();
 
-
         while (isSampling) {
 
             grayscales = sampleBitmap();
@@ -306,29 +212,45 @@ void Interpreter::getColor() {
 
             detectNoteEvent(grayscales, outFile, currentTick);   
 
-        //  counter.printFPS();
+         // counter.printFPS();
         }
 
-        OutputDebugStringA(to_string(saveMidiFile(outFile)).data());
-
+        outputFile = outFile;
+        doneSaving = true;
     }
+
 bool Interpreter::saveMidiFile(MidiFile& out) {
-            
-        out.sortTracks();
+    out.sortTracks();
 
-        time_t t = std::time(NULL);   // get time now
-        tm thisMoment;
+    time_t t = std::time(NULL);
+    tm thisMoment;
+    localtime_s(&thisMoment, &t);
 
-        localtime_s(&thisMoment, &t);
+    char timestamp[_MAX_PATH];
+    strftime(timestamp, _MAX_PATH, "MIDI Recording on %Y-%m-%d at %H.%M.%S", &thisMoment);
 
-        char timestamp[80];
-        strftime(timestamp, 80, "MIDI Recording on %Y-%m-%d at %H.%M.%S", &thisMoment);
-        std::string FilePath = "Recordings\\";
-        std::string FullDirectory = FilePath.append(timestamp);
-        FullDirectory = FullDirectory.append(".mid");
+    OPENFILENAMEA ofn = { sizeof(OPENFILENAME) };
 
-       return out.write(FullDirectory);
+    char filePath[_MAX_PATH] = {};  // Use a writable character array
+    strcpy_s(filePath, timestamp);  // Copy timestamp into filePath
+
+    ofn.hwndOwner = GetConsoleWindow();
+    ofn.lpstrFile = filePath;  // Safe writable buffer
+    ofn.nMaxFile = _MAX_PATH;
+    ofn.lpstrFilter = "MIDI Files\0*.mid\0";
+    ofn.lpstrDefExt = "mid";
+    ofn.Flags = OFN_SHOWHELP | OFN_OVERWRITEPROMPT;
+
+    std::string FullDirectory;
+    int saved = 0;
+
+    if (GetSaveFileNameA(&ofn)) {
+        FullDirectory = filePath;
+        saved = out.write(FullDirectory);
     }
+
+    return saved;
+}
 int Interpreter::detectNoteEvent(pianoColors& sampo, MidiFile& outFile, int tick) {
 
         const int defaultVelocity = 64;
@@ -351,9 +273,11 @@ int Interpreter::detectNoteEvent(pianoColors& sampo, MidiFile& outFile, int tick
                 currentEvent[Note] = octaveCount > 5 ? i : i + 36;            // start from C 1, if octavecount > 5 start from C -2 (fullrange)
 
                 string time = to_string(tick) + " Absticks: ";
-                OutputDebugStringA(time.data());
-                printEvent(currentEvent);
+               // OutputDebugStringA(time.data());
+     
+                midiLog.writeEvent(currentEvent);
                 outFile.addEvent(1, tick, currentEvent);
+
             }
             wasPressed[i] = isPressed[i];
         }    
@@ -365,7 +289,6 @@ pianoColors Interpreter::sampleBitmap() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
         pianoColors grayscales(amountOfSamples);
-        LockMap.lock();
 
         if (hBitmap) DeleteObject(hBitmap);
 
@@ -394,7 +317,7 @@ pianoColors Interpreter::sampleBitmap() {
         GetDIBits(hdcMem, hBitmap, 0, piano.bottom - piano.top, pixels.data(), &bmi, DIB_RGB_COLORS);
 
         // SAVE BMP FOR DEBUG
-#ifdef _DEBUG
+#ifdef _DEBUG_
             // string filePath = "A:/Music/Production/Electronics/midiRipper/recording.bmp";
 
              // Prepare BMP file header
@@ -432,21 +355,9 @@ pianoColors Interpreter::sampleBitmap() {
 
         }
 
-        LockMap.unlock();
-
         return grayscales;
     }
-void Interpreter::printEvent(vector<uchar> mEvent) {
 
-
-        int octave = mEvent[Note] / 12;     // rounded down
-        int key = mEvent[Note] % 12;
-        bool down = mEvent[OnOff] == 0x90;
-        string state = down ? "down] " : "up] ";
-
-        string output = "[Press " + state + keyNames[key] + to_string(octave) + "\n";
-        OutputDebugStringA(output.data());
-    }
 int Interpreter::createMidiFile() {
 
         // example function from midifile library I used for learning
@@ -504,30 +415,21 @@ int Interpreter::createMidiFile() {
     
     }
 
-
 void Interpreter::renderFrame() {
 
     ImGui::SetNextWindowBgAlpha(0.00f);
     ImGui::Begin("Rendering frame");// , nullptr, ImGuiWindowFlags_NoBackground);
 
+    ImVec4 startvalue = { windowPos.x, windowPos.y,windowSize.x, windowSize.y };
     windowPos = ImGui::GetWindowPos();
     windowSize = ImGui::GetWindowSize();
+    ImVec4 newvalue = { windowPos.x, windowPos.y,windowSize.x, windowSize.y };
 
-    updatePiano();
+    if (startvalue != newvalue) {
+        updatePiano();
+    }
 
     makeRectangles();
-
-
-    ImVec2 clickPos = ImGui::GetMousePos();
-    log("topleft is  at: " + to_string(windowPos.x) + ", " + to_string(windowPos.y) + "\n");
-    log("botright is at: " + to_string(windowSize.x) + ", " + to_string(windowSize.y) + "\n");
-    log("PIANO:\n");
-    log("top   = " + to_string(piano.top) +
-        "\nleft  = " + to_string(piano.left) +
-        "\nbottom= " + to_string(piano.bottom) +
-        "\nright = " + to_string(piano.right) + "\n\n");
-
-
     ImGui::End();
 }
 
@@ -535,23 +437,27 @@ void Interpreter::makeRectangles() {
 
     ImVec4 lineColor = { 255, 40, 40, 255 };
 
+    float TitleBarHeight = 22;
+
+    float thic = 5;
+    ImVec2 offset = { 0, TitleBarHeight };
+
  //   HBRUSH lineColor = CreateSolidBrush(RGB(255, 40, 40));
 
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
+
     // Define rectangle coordinates (screen space)
-    ImVec2 top_left = windowPos;
+    ImVec2 top_left = windowPos + offset;
     ImVec2 bottom_right = windowPos + windowSize;
 
 
     // Draw a rectangle (border only, no fill)
-    draw_list->AddRect(top_left, bottom_right, IM_COL32(255, 0, 0, 255), 0.5f, 0, 1.0f); // Red border, thickness 3.0f
-
+    draw_list->AddRect(top_left, bottom_right, IM_COL32(170, 0, 255, 255), 0.5f, 0, thic); // purple border
     int squareSize = 5;
 
-    // sample point
-
+    // sample points
     for (size_t sPoint = 0; sPoint < amountOfSamples; sPoint++)
     {
         points[sPoint];
@@ -562,36 +468,75 @@ void Interpreter::makeRectangles() {
    
     }
 
-    // piano frame
-  //  FrameRect(hdc, &piano, lineColor);
-
-    // grab points
-
-    log("topleft is at: " + to_string(points[point_topLeft].x) + ", " + to_string(points[point_topLeft].y) + "\n");
-    log("botright is at: " + to_string(points[point_botRight].x) + ", " + to_string(points[point_botRight].y) + "\n");
-    log("Rectangle size = : " + to_string(points[point_botRight].x - points[point_topLeft].x) + " X " + to_string(points[point_botRight].y - points[point_topLeft].y) + "\n\n");
-
-
-
 }
 
 void Interpreter::renderUserInput() {
 
 
+    ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(20, 150, 200, 100));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(20, 150, 200, 200));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(20, 150, 255, 255));
 
-    if (ImGui::Button("Start Sampling")) startSampling();
-    if (ImGui::Button("Stop Sampling")) stopSampling();
+    ImGui::SetNextItemWidth(200);
+    if (ImGui::Button("Start Sampling")) startSampling();    ImGui::SameLine(150);
+    ImGui::SetNextItemWidth(200);
+    if (ImGui::Button("Stop Sampling")) stopSampling(); 
+    ImGui::SetNextItemWidth(200);
 
-    if (ImGui::Button("Add Octave")) addOctave();
-    if (ImGui::Button("Remove Octave")) removeOctave();
-
-    if (ImGui::Button("Offset +")) changeOffset(1);
-    if (ImGui::Button("Offset -")) changeOffset(-1);
-
-    ImVec2 mousePos = ImGui::GetMousePos();
-    ImGui::Text("Mouse Position: (%.1f, %.1f)", mousePos.x, mousePos.y);
+    ImGui::PopStyleColor(3);
 
 
+
+    if (isSampling) {
+        ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(255, 10, 10, 180));
+        ImGui::SameLine(300);   
+        ImGui::Button("Recording...");
+        ImGui::PopStyleColor();
+    }
+
+
+    // save recording
+    if (doneSaving && !isSampling) {
+        ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(150, 150, 255, 100));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(200, 100, 255, 100));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(200, 100, 150, 255));
+
+        bool goodSave = false;
+        ImGui::SameLine(300);
+        if (ImGui::Button("Save current recording")) {
+
+            goodSave = saveMidiFile(outputFile);
+
+        }
+        if (goodSave) {
+            ImGui::SameLine(150);
+            ImGui::TextColored({ 50, 255, 50, 200 }, "midi file Saved!");
+        }
+        ImGui::PopStyleColor(3);
+
+    }
+
+    ImGui::Spacing();
+
+    ImGui::SeparatorText("Piano adjustment");
+    ImGui::SetNextItemWidth(200);
+    if (ImGui::SliderInt("Set amount of octaves to sample", &octaveCount, 0, 7, "%d octaves", 0)) {
+        updatePiano();
+    };
+
+    ImGui::SetNextItemWidth(200);
+    if (ImGui::SliderFloat("Note offset", &noteOffset, -0.1f, 0.1f, "%.3f", 0)) {
+        updatePiano();
+    };
+
+
+}
+
+void Interpreter::renderMidiLog(ImFont* font)
+{
+    ImGui::PushFont(font);
+    midiLog.Draw("Midi Log");
+    ImGui::PopFont();
 }
 
 

@@ -35,13 +35,13 @@ This tool was created as a personal experiment to combine my interests in coding
 ---
 ## Future-updates
 
--  Viable sensitivity slider for a wider range of detection
--  Definitely need to make a recording indicator!! + prompt to save midi file
+-  sensitivity slider for a wider range of detection
 -  Option for automatic octaveCount setter
 -  Image processing for auto-aligning piano without user setup? Line detection algorithm maybe? Could be very cool to design 
 
 -  I don't really know how pull requests or git stuff works yet so you'll have to guide me on that if you'd like to contribute.
 -  [DONE] I'm considering a UI revamp with [Dear ImGui](https://github.com/ocornut/imgui) in future updates for better usability.
+-  [DONE] Definitely need to make a recording indicator!! + prompt to save midi file
 
 ---
 
